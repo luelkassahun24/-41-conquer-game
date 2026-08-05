@@ -4,48 +4,127 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ወርቅ 41 ኮንከር</title>
+  <script src="/socket.io/socket.io.js"></script>
   <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: Arial, sans-serif;
-      background-color: #121212;
-      color: #ffffff;
-      text-align: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #1e1e2f;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 15px;
+    }
+    h1 { color: #ffd700; margin-bottom: 10px; font-size: 1.8rem; }
+    
+    .card-box {
+      background: #2b2b40;
       padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.4);
+      width: 100%;
+      max-width: 400px;
+      margin-top: 20px;
+      text-align: center;
     }
-    h1 {
-      color: #ffd700;
-      font-size: 2.2rem;
-      margin-bottom: 10px;
+    
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      border-radius: 8px;
+      border: none;
+      font-size: 1rem;
     }
-    p {
-      color: #cccccc;
-      font-size: 1.1rem;
+    
+    input { background: #3b3b54; color: #fff; }
+    button { background: #ffd700; color: #1e1e2f; font-weight: bold; cursor: pointer; }
+    button:hover { background: #e6c200; }
+
+    .game-board { display: none; width: 100%; max-width: 500px; margin-top: 15px; }
+    .status-bar { background: #33334d; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
+    
+    .hand {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 15px;
     }
-    .card-container {
-      margin-top: 30px;
-    }
-    .card {
-      display: inline-block;
-      width: 70px;
-      height: 100px;
+    .playing-card {
+      width: 60px;
+      height: 90px;
       background: white;
       color: black;
-      border-radius: 8px;
-      margin: 8px;
-      line-height: 100px;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 5px;
       font-weight: bold;
-      font-size: 1.5rem;
-      box-shadow: 0 4px 8px rgba(255,215,0,0.3);
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
     }
+    .red { color: #d9534f; }
   </style>
 </head>
 <body>
-  <h1>🏆 ወርቅ 41 ኮንከር</h1>
-  <p>እንኳን ወደ ወርቅ 41 ካርድ ጨዋታ በደህና መጡ!</p>
-  
-  <div class="card-container">
-    <div class="card">🂠</div>
-    <div class="card">🂡</div>
+
+  <h1>🏆 ወርቅ 41 (41 Conquer)</h1>
+
+  <!-- Join Screen -->
+  <div id="join-screen" class="card-box">
+    <h3>መጫወቻ ክፍል ይቀላቀሉ</h3>
+    <input type="text" id="playerName" placeholder="ስምዎን ያስገቡ...">
+    <input type="text" id="roomId" placeholder="የክፍል ቁጥር (ለምሳሌ: 100)">
+    <button onclick="joinGame()">ወደ ጨዋታው ግባ 🚀</button>
   </div>
+
+  <!-- Game Screen -->
+  <div id="game-screen" class="game-board">
+    <div class="status-bar">
+      <p id="roomDisplay">ክፍል: -</p>
+      <p id="playerDisplay">ተጫዋች: -</p>
+    </div>
+
+    <h3>የእርስዎ ካርዶች (Your Hand)</h3>
+    <div id="myHand" class="hand"></div>
+  </div>
+
+  <script>
+    const socket = io();
+
+    function joinGame() {
+      const name = document.getElementById('playerName').value;
+      const room = document.getElementById('roomId').value;
+
+      if (!name || !room) {
+        alert('እባክዎን ስም እና የክፍል ቁጥር ያስገቡ!');
+        return;
+      }
+
+      socket.emit('joinRoom', { roomId: room, playerName: name });
+
+      document.getElementById('join-screen').style.display = 'none';
+      document.getElementById('game-screen').style.display = 'block';
+
+      document.getElementById('roomDisplay').innerText = `ክፍል ቁጥር: ${room}`;
+      document.getElementById('playerDisplay').innerText = `ተጫዋች: ${name}`;
+      
+      // Sample cards demo
+      renderCards();
+    }
+
+    function renderCards() {
+      const handContainer = document.getElementById('myHand');
+      handContainer.innerHTML = `
+        <div class="playing-card red"><span>A</span><span>♥</span></div>
+        <div class="playing-card"><span>10</span><span>♠</span></div>
+        <div class="playing-card red"><span>K</span><span>♦</span></div>
+        <div class="playing-card"><span>J</span><span>♣</span></div>
+      `;
+    }
+  </script>
 </body>
-  </html>
+</html>
