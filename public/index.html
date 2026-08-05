@@ -19,7 +19,6 @@
         .header-bar { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.4); padding: 6px 15px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); }
         .balance-box { color: #ffd700; font-weight: bold; font-size: 16px; }
 
-        /* Top Bar Layout: Turn Indicator + Actions */
         .top-controls { display: flex; justify-content: space-between; align-items: center; margin: 5px 0; padding: 0 10px; }
         .turn-indicator { font-size: 13px; font-weight: bold; color: #ffd700; background: rgba(0,0,0,0.6); padding: 6px 12px; border-radius: 15px; border: 1px solid #ffd700; white-space: nowrap; }
 
@@ -30,10 +29,12 @@
         .btn-success { background: #28a745; color: #fff; }
         .btn-danger { background: #dc3545; color: #fff; }
 
-        .game-mode-selector { text-align: center; margin: 10px 0; background: rgba(18, 40, 28, 0.9); padding: 12px; border-radius: 12px; border: 1px solid #ffd700; }
-        .mode-btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 8px; }
+        /* Game Mode Selector Card */
+        .game-mode-selector { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; background: rgba(18, 40, 28, 0.95); padding: 25px; border-radius: 16px; border: 2px solid #ffd700; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 50; width: 90%; max-width: 380px; }
+        .mode-btn-group { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+        .mode-btn-group .btn { padding: 12px; font-size: 14px; border-radius: 8px; }
 
-        /* Left & Right Piles (Landscape Friendly) */
+        /* Piles Area (Hidden until mode selected) */
         .table-area { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 0 40px; position: absolute; top: 75px; left: 0; right: 0; pointer-events: none; }
         .pile-box { pointer-events: auto; width: 95px; height: 140px; border-radius: 10px; border: 2px dashed rgba(255,255,255,0.4); display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0, 0, 0, 0.5); position: relative; cursor: pointer; transition: transform 0.2s, border-color 0.2s; overflow: hidden; }
         .pile-box:active { transform: scale(0.95); }
@@ -41,11 +42,9 @@
         .pile-box.discard-hover { border-color: #00ff66 !important; background: rgba(0,255,102,0.3) !important; transform: scale(1.05); }
         .pile-title { position: absolute; top: -20px; font-size: 11px; color: #ffd700; white-space: nowrap; font-weight: bold; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 8px; }
 
-        /* Discarded Card Style */
         .table-card { width: 100%; height: 100%; background: #fff; color: #111; border-radius: 8px; display: flex; flex-direction: column; justify-content: space-between; padding: 6px; font-weight: bold; border: 1px solid #ccc; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
         .table-card.red { color: #d00000; }
 
-        /* Hand Container & Cards */
         .hand-container { position: relative; height: 160px; width: 100%; max-width: 650px; margin: auto auto 5px auto; display: flex; justify-content: center; align-items: flex-end; }
         
         .card { 
@@ -83,7 +82,7 @@
             <div class="balance-box">💰 <span id="userBalance">0</span> ETB</div>
         </div>
 
-        <div class="top-controls">
+        <div class="top-controls" id="topControls" style="display: none;">
             <div class="turn-indicator" id="turnIndicator">የእርስዎ ተራ: 15s</div>
             <div class="action-bars">
                 <button class="btn btn-success" onclick="claimWin()">🏆 SHOW</button>
@@ -93,14 +92,15 @@
         </div>
 
         <div class="game-mode-selector" id="modeSelector">
-            <h3 style="color: #ffd700; font-size: 14px;">🎮 የጨዋታ አይነት ይምረጡ</h3>
+            <h3 style="color: #ffd700; font-size: 16px;">🎮 የጨዋታ አይነት ይምረጡ</h3>
             <div class="mode-btn-group">
                 <button class="btn btn-primary" onclick="startGame('BOT')">🤖 ከአድሚን/ቦት (Bot)</button>
                 <button class="btn btn-group" onclick="startGame('GROUP')">👥 የቡድን ጨዋታ</button>
             </div>
         </div>
 
-        <div class="table-area">
+        <!-- Mada / Piles hidden initially -->
+        <div class="table-area" id="tableArea" style="display: none;">
             <div class="pile-box deck" onclick="drawCard()">
                 <span class="pile-title">ቁልል (Draw)</span>
                 <span style="font-size: 45px;">🎴</span>
@@ -111,7 +111,7 @@
             </div>
         </div>
 
-        <div class="hand-container" id="playerHand"></div>
+        <div class="hand-container" id="playerHand" style="display: none;"></div>
     </div>
 
     <script>
@@ -167,7 +167,11 @@
 
         socket.on('gameStarted', (data) => {
             currentHand = data.playerHand;
+            // Hide selector, show game play controls and table
             document.getElementById('modeSelector').style.display = 'none';
+            document.getElementById('topControls').style.display = 'flex';
+            document.getElementById('tableArea').style.display = 'flex';
+            document.getElementById('playerHand').style.display = 'flex';
             renderHand();
         });
 
@@ -183,6 +187,13 @@
             indicator.innerText = (isMyTurn ? "የእርስዎ ተራ: " : "የተቃራኒ ተራ: ") + timeLeft + "s";
         });
 
+        function getSuitSymbol(suitStr) {
+            if (suitStr === '♥' || suitStr === 'H' || suitStr === 'hearts') return '♥';
+            if (suitStr === '♦' || suitStr === 'D' || suitStr === 'diamonds') return '♦';
+            if (suitStr === '♣' || suitStr === 'C' || suitStr === 'clubs') return '♣';
+            return '♠';
+        }
+
         function renderHand() {
             const container = document.getElementById('playerHand');
             container.innerHTML = '';
@@ -190,7 +201,8 @@
             
             currentHand.forEach((card, index) => {
                 const cardEl = document.createElement('div');
-                const isRed = card.suit === '♥' || card.suit === '♦';
+                const suitSymbol = getSuitSymbol(card.suit);
+                const isRed = suitSymbol === '♥' || suitSymbol === '♦';
                 cardEl.className = `card ${isRed ? 'red' : ''}`;
                 
                 const mid = (total - 1) / 2;
@@ -205,12 +217,12 @@
                 cardEl.innerHTML = `
                     <div class="card-top">
                         <span class="card-value">${card.value}</span>
-                        <span class="card-suit-small">${card.suit}</span>
+                        <span class="card-suit-small">${suitSymbol}</span>
                     </div>
-                    <div class="card-suit-center">${card.suit}</div>
+                    <div class="card-suit-center">${suitSymbol}</div>
                     <div class="card-bottom">
                         <span class="card-value">${card.value}</span>
-                        <span class="card-suit-small">${card.suit}</span>
+                        <span class="card-suit-small">${suitSymbol}</span>
                     </div>
                 `;
 
@@ -221,7 +233,7 @@
         }
 
         function attachSmoothDrag(el, index) {
-            let startX, startY, initialTransform;
+            let startX, startY;
 
             const getTouchPos = (e) => {
                 return e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY };
@@ -233,7 +245,6 @@
                 const pos = getTouchPos(e);
                 startX = pos.x;
                 startY = pos.y;
-                initialTransform = el.style.transform;
                 el.classList.add('dragging');
             };
 
@@ -328,17 +339,18 @@
                 pile.innerHTML = '<span style="color:#aaa; font-size:12px">ባዶ</span>';
                 return;
             }
-            const isRed = card.suit === '♥' || card.suit === '♦';
+            const suitSymbol = getSuitSymbol(card.suit);
+            const isRed = suitSymbol === '♥' || suitSymbol === '♦';
             pile.innerHTML = `
                 <div class="table-card ${isRed ? 'red' : ''}">
                     <div class="card-top">
                         <span class="card-value">${card.value}</span>
-                        <span class="card-suit-small">${card.suit}</span>
+                        <span class="card-suit-small">${suitSymbol}</span>
                     </div>
-                    <div class="card-suit-center">${card.suit}</div>
+                    <div class="card-suit-center">${suitSymbol}</div>
                     <div class="card-bottom">
                         <span class="card-value">${card.value}</span>
-                        <span class="card-suit-small">${card.suit}</span>
+                        <span class="card-suit-small">${suitSymbol}</span>
                     </div>
                 </div>
             `;
