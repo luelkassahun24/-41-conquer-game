@@ -13,7 +13,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 let users = {};
 let deposits = [];
 let withdrawals = [];
+app.use(express.static(path.join(__dirname, 'public')));
 
+// 🌟 ይህችን መስመር ከስሩ አዲስ አክላት 🌟
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 // 1. መመዝገቢያ (Register - 3 Day Free Trial)
 app.post('/api/register', (req, res) => {
     const { name, phone, password } = req.body;
