@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ወርቅ 41 - የአድሚን ፓነል (Admin Dashboard)</title>
+  <style>
+    body { font-family: sans-serif; background: #121212; color: #fff; padding: 20px; }
+    h1, h2 { color: #ffd700; }
+    .card { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #444; padding: 10px; text-align: left; }
+    th { background: #2a2a2a; color: #ffd700; }
+    button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-approve { background: #28a745; color: white; }
+    .btn-warn { background: #ffc107; color: black; }
+    .btn-deduct { background: #fd7e14; color: white; }
+    .btn-ban { background: #dc3545; color: white; }
+    input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #252525; color: white; }
+  </style>
+</head>
+<body>
+
+  <h1>🛡️ ወርቅ 41 - Admin Control Dashboard</h1>
+
+  <!-- Pending Deposits -->
+  <div class="card">
+    <h2>💳 የብር ማስገቢያ ጥያቄዎች (Pending Deposits)</h2>
+    <table id="depositsTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>ስልክ</th>
+          <th>መጠን (ETB)</th>
+          <th>ሁኔታ</th>
+          <th>እርምጃ</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- Pending Withdrawals -->
+  <div class="card">
+    <h2>💸 የብር ማውጫ ጥያቄዎች (Pending Withdrawals)</h2>
+    <table id="withdrawalsTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>ስልክ</th>
+          <th>መጠን (ETB)</th>
+          <th>የባንክ/ቴሌብር መረጃ</th>
+          <th>ሁኔታ</th>
+          <th>እርምጃ</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <!-- User Action Controls -->
+  <div class="card">
+    <h2>⚠️ የተጫዋች መቆጣጠሪያ (User Security Actions)</h2>
+    <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+      <input type="tel" id="actionPhone" placeholder="የተጫዋች ስልክ ቁጥር">
+      <input type="number" id="deductAmount" placeholder="የቅጣት ብር (Default 200)" value="200">
+      <button class="btn-warn" onclick="userAction('WARN')">⚠️ Send Warning</button>
+      <button class="btn-deduct" onclick="userAction('DEDUCT')">💸 Deduct ETB</button>
+      <button class="btn-ban" onclick="userAction('BAN')">🚫 Ban Account</button>
+    </div>
+  </div>
+
+  <script>
+    function loadData() {
+      fetch('/admin/deposits')
+        .then(r => r.json())
+        .then(data => {
+          const tbody = document.querySelector('#depositsTable tbody');
+          tbody.innerHTML = '';
+          data.forEach(d => {
+            tbody.innerHTML += `
+              <tr>
+                <td>${d.id}</td>
+                <td>${d.phone}</td>
+                <td>${d.amount} ETB</td>
+                <td>${d.status}</td>
+                <td>
+                  ${d.status === 'PENDING' ? `<button class="btn-approve" onclick="approveDeposit('${d.id}')">Approve</button>` : 'Approved'}
+                </td>
+              </tr>
+            `;
+          });
+        });
+
+      fetch('/admin/withdrawals')
+        .then(r => r.json())
+        .then(data => {
+          const tbody = document.querySelector('#withdrawalsTable tbody');
+          tbody.innerHTML = '';
+          data.forEach(w => {
+            tbody.innerHTML += `
+              <tr>
+                <td>${w.id}</td>
+                <td>${w.phone}</td>
+                <td>${w.amount} ETB</td>
+                <td>${w.accountDetails}</td>
+                <td>${w.status}</td>
+                <td>
+                  ${w.status === 'PENDING' ? `<button class="btn-approve" onclick="approveWithdraw('${w.id}')">Approve</button>` : 'Approved'}
+                </td>
+              </tr>
+            `;
+          });
+        });
+    }
+
+    function approveDeposit(id) {
+      fetch('/admin/approve-deposit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id })
+      }).then(() => loadData());
+    }
+
+    function approveWithdraw(id) {
+      fetch('/admin/approve-withdraw', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id })
+      }).then(() => loadData());
+    }
+
+    function userAction(action) {
+      const phone = document.getElementById('actionPhone').value;
+      const amount = parseFloat(document.getElementById('deductAmount').value);
+      if(!phone) return alert('እባክዎን የስልክ ቁጥር ያስገቡ!');
+
+      fetch('/admin/user-action', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ phone, action, amount })
+      })
+      .then(r => r.json())
+      .then(data => {
+        alert(data.message || data.error);
+        loadData();
+      });
+    }
+
+    setInterval(loadData, 3000);
+    loadData();
+  </script>
+</body>
+  </html>
