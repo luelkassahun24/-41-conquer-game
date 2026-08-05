@@ -7,7 +7,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #05140b; color: #fff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b1a10; color: #fff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         
         .auth-container { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
         .auth-box { background: #183324; padding: 25px; border-radius: 12px; border: 2px solid #ffd700; width: 100%; max-width: 350px; text-align: center; }
@@ -15,43 +15,49 @@
         .auth-box input { width: 100%; padding: 12px; margin: 8px 0; background: #0b1d13; border: 1px solid #2d5a3f; border-radius: 6px; color: #fff; font-size: 16px; text-align: center; }
         .auth-box button { width: 100%; padding: 12px; margin-top: 10px; background: #ffd700; border: none; border-radius: 6px; color: #000; font-weight: bold; font-size: 16px; cursor: pointer; }
         
-        .game-screen { display: flex; flex-direction: column; height: 100vh; justify-content: space-between; padding: 10px; position: relative; }
-        .header-bar { display: flex; justify-content: space-between; align-items: center; background: #12281c; padding: 10px 15px; border-radius: 8px; border: 1px solid #2d5a3f; }
-        .balance-box { color: #ffd700; font-weight: bold; font-size: 18px; }
-        
-        /* ጨዋታ ሲጀመር የሚሸሸግ መምረጫ */
-        .game-mode-selector { text-align: center; margin: 10px 0; background: #12281c; padding: 12px; border-radius: 8px; border: 1px solid #2d5a3f; transition: all 0.3s ease; }
-        .game-mode-selector h3 { color: #ffd700; margin-bottom: 8px; font-size: 15px; }
-        .mode-btn-group { display: flex; gap: 10px; justify-content: center; }
+        .game-screen { display: flex; flex-direction: column; height: 100vh; justify-content: space-between; padding: 10px; position: relative; background: radial-gradient(circle, #1a3c27 0%, #08120b 100%); }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.4); padding: 8px 15px; border-radius: 20px; border: 1px solid rgba(255,215,0,0.3); }
+        .balance-box { color: #ffd700; font-weight: bold; font-size: 16px; }
 
-        .table-area { display: flex; justify-content: center; align-items: center; gap: 30px; margin: 15px 0; }
-        .pile-box { width: 75px; height: 110px; border-radius: 8px; border: 2px dashed #2d5a3f; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(18, 40, 28, 0.6); position: relative; cursor: pointer; }
-        .pile-box.deck { background: #1a422b; border: 2px solid #ffd700; }
-        .pile-title { position: absolute; top: -20px; font-size: 12px; color: #aaa; white-space: nowrap; }
+        .game-mode-selector { text-align: center; margin: 10px 0; background: rgba(18, 40, 28, 0.9); padding: 12px; border-radius: 12px; border: 1px solid #ffd700; }
+        .mode-btn-group { display: flex; gap: 10px; justify-content: center; margin-top: 8px; }
 
-        /* የካርታ አደራደርና የመጎተት ስታይል */
-        .hand-container { position: relative; height: 210px; width: 100%; display: flex; justify-content: center; align-items: flex-end; margin-bottom: 10px; touch-action: none; }
-        .card { width: 72px; height: 112px; background: #fff; color: #111; border-radius: 8px; position: absolute; bottom: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; flex-direction: column; justify-content: space-between; padding: 6px; font-weight: bold; cursor: grab; border: 2px solid #ccc; transition: transform 0.1s ease; user-select: none; }
-        .card.red { color: #d00000; }
-        .card.active-drag { z-index: 200 !important; border-color: #ffd700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
+        /* Table & Cards Pile */
+        .table-area { display: flex; justify-content: center; align-items: center; gap: 40px; margin-top: 20px; }
+        .pile-box { width: 75px; height: 108px; border-radius: 8px; border: 2px dashed rgba(255,255,255,0.3); display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(0, 0, 0, 0.3); position: relative; cursor: pointer; transition: transform 0.2s; }
+        .pile-box:active { transform: scale(0.95); }
+        .pile-box.deck { background: #1a422b; border: 2px solid #ffd700; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .pile-box.discard-hover { border-color: #00ff66; background: rgba(0,255,102,0.1); }
+        .pile-title { position: absolute; top: -22px; font-size: 11px; color: #ccc; white-space: nowrap; font-weight: bold; }
 
-        .card-top { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
-        .card-value { font-size: 15px; }
-        .card-suit-small { font-size: 14px; }
-        .card-suit-center { font-size: 32px; text-align: center; line-height: 1; margin-top: 2px; }
-        .card-bottom { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; transform: rotate(180deg); }
-
-        .action-bars { display: flex; gap: 8px; justify-content: center; margin-bottom: 5px; flex-wrap: wrap; }
-        .btn { padding: 10px 16px; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; }
+        .action-bars { display: flex; gap: 8px; justify-content: center; margin-bottom: 5px; z-index: 10; }
+        .btn { padding: 8px 14px; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 12px; }
         .btn-primary { background: #ffd700; color: #000; }
         .btn-group { background: #007bff; color: #fff; }
         .btn-success { background: #28a745; color: #fff; }
         .btn-danger { background: #dc3545; color: #fff; }
+
+        /* Gin Rummy Style Curved Fan Hand */
+        .hand-container { position: relative; height: 180px; width: 100%; max-width: 500px; margin: 0 auto 10px auto; display: flex; justify-content: center; align-items: flex-end; }
+        
+        .card { 
+            width: 70px; height: 105px; background: #fff; color: #111; border-radius: 8px; position: absolute; bottom: 0; 
+            box-shadow: -2px 4px 10px rgba(0,0,0,0.5); display: flex; flex-direction: column; justify-content: space-between; 
+            padding: 5px; font-weight: bold; cursor: grab; border: 1px solid #ccc; transform-origin: bottom center; 
+            transition: transform 0.15s ease-out, box-shadow 0.15s; touch-action: none; 
+        }
+        .card.red { color: #d00000; }
+        .card.dragging { z-index: 999 !important; transform: scale(1.15) !important; box-shadow: 0 10px 20px rgba(0,0,0,0.7); cursor: grabbing; }
+
+        .card-top { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+        .card-value { font-size: 14px; }
+        .card-suit-small { font-size: 12px; }
+        .card-suit-center { font-size: 28px; text-align: center; line-height: 1; margin-top: 2px; }
+        .card-bottom { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; transform: rotate(180deg); }
     </style>
 </head>
 <body>
 
-    <!-- Auth Screen -->
     <div id="authScreen" class="auth-container">
         <div class="auth-box">
             <h2>ወርቅ 41 (Werq 41)</h2>
@@ -63,31 +69,28 @@
         </div>
     </div>
 
-    <!-- Main Game Interface -->
     <div id="gameScreen" class="game-screen" style="display: none;">
         <div class="header-bar">
             <div>👤 <span id="userDisplayName">-</span></div>
             <div class="balance-box">💰 <span id="userBalance">0</span> ETB</div>
         </div>
 
-        <!-- Mode Selector (ጨዋታ ሲጀምር የሚጠፋ) -->
         <div class="game-mode-selector" id="modeSelector">
-            <h3>🎮 የጨዋታ አይነት ይምረጡ</h3>
+            <h3 style="color: #ffd700; font-size: 14px;">🎮 የጨዋታ አይነት ይምረጡ</h3>
             <div class="mode-btn-group">
                 <button class="btn btn-primary" onclick="startGame('BOT')">🤖 ከአድሚን (Bot)</button>
                 <button class="btn btn-group" onclick="startGame('GROUP')">👥 የቡድን ጨዋታ</button>
             </div>
         </div>
 
-        <!-- Table Area -->
         <div class="table-area">
             <div class="pile-box deck" onclick="drawCard()">
-                <span class="pile-title">ቁልል ካርታ</span>
+                <span class="pile-title">ቁልል (Draw)</span>
                 <span style="font-size: 28px;">🎴</span>
             </div>
             <div class="pile-box" id="discardPile">
-                <span class="pile-title">መጣያ ካርታ</span>
-                <div id="discardContent" style="color: #666; font-size: 12px;">ባዶ</div>
+                <span class="pile-title">መጣያ (Discard)</span>
+                <div id="discardContent" style="color: #aaa; font-size: 12px; text-align: center;">ካርታ ለመጣል እዚህ ይጎትቱ</div>
             </div>
         </div>
 
@@ -104,8 +107,7 @@
         const socket = io();
         let currentUser = null;
         let currentHand = [];
-        let activeIndex = null;
-        let startX = 0;
+        let draggedCardIdx = null;
 
         function register() {
             const name = document.getElementById('authName').value;
@@ -152,11 +154,11 @@
 
         socket.on('gameStarted', (data) => {
             currentHand = data.playerHand;
-            // ጨዋታው ሲጀምር መምረጫው እንዲጠፋ ይደረጋል
             document.getElementById('modeSelector').style.display = 'none';
             renderHand();
         });
 
+        // Gin Rummy Arc Layout Render
         function renderHand() {
             const container = document.getElementById('playerHand');
             container.innerHTML = '';
@@ -167,11 +169,15 @@
                 const isRed = card.suit === '♥' || card.suit === '♦';
                 cardEl.className = `card ${isRed ? 'red' : ''}`;
                 
-                const offset = (index - (total - 1) / 2);
-                const angle = offset * 3.5;
-                const translateX = offset * 25;
+                // Gin Rummy Arc Calculation
+                const mid = (total - 1) / 2;
+                const offset = index - mid;
+                const angle = offset * 4.5; 
+                const translateX = offset * 26;
+                const translateY = Math.abs(offset) * 3;
 
-                cardEl.style.transform = `translateX(${translateX}px) rotate(${angle}deg)`;
+                cardEl.style.transform = `translateX(${translateX}px) translateY(${translateY}px) rotate(${angle}deg)`;
+                cardEl.dataset.index = index;
 
                 cardEl.innerHTML = `
                     <div class="card-top">
@@ -185,53 +191,94 @@
                     </div>
                 `;
 
-                // ቀሊል የ touch/mouse እንቅስቃሴ
-                bindCardTouch(cardEl, index);
+                // Double Click/Tap to quick discard
+                cardEl.addEventListener('dblclick', () => discardCard(index));
+
+                attachFastDrag(cardEl, index);
                 container.appendChild(cardEl);
             });
         }
 
-        function bindCardTouch(el, index) {
-            const handleStart = (e) => {
-                activeIndex = index;
-                startX = e.touches ? e.touches[0].clientX : e.clientX;
-                el.classList.add('active-drag');
+        // Fast & Smooth Drag Logic
+        function attachFastDrag(el, index) {
+            let startX, startY, origTransform;
+
+            const onTouchStart = (e) => {
+                draggedCardIdx = index;
+                const touch = e.touches ? e.touches[0] : e;
+                startX = touch.clientX;
+                startY = touch.clientY;
+                origTransform = el.style.transform;
+                el.classList.add('dragging');
             };
 
-            const handleMove = (e) => {
-                if (activeIndex === null || activeIndex !== index) return;
-                const currentX = e.touches ? e.touches[0].clientX : e.clientX;
-                const diff = currentX - startX;
+            const onTouchMove = (e) => {
+                if (draggedCardIdx === null) return;
+                const touch = e.touches ? e.touches[0] : e;
+                const moveX = touch.clientX - startX;
+                const moveY = touch.clientY - startY;
 
-                // 25px ያህል ወደ ግራ ወይም ቀኝ ሲጎተት ቦታ መቀያየር
-                if (diff > 25 && index < currentHand.length - 1) {
-                    swapCards(index, index + 1);
-                    activeIndex = null;
-                } else if (diff < -25 && index > 0) {
-                    swapCards(index, index - 1);
-                    activeIndex = null;
+                el.style.transform = `translate(${moveX}px, ${moveY}px) scale(1.1)';`;
+
+                // Check Discard Pile Hover
+                const discardRect = document.getElementById('discardPile').getBoundingClientRect();
+                if (touch.clientX >= discardRect.left && touch.clientX <= discardRect.right &&
+                    touch.clientY >= discardRect.top && touch.clientY <= discardRect.bottom) {
+                    document.getElementById('discardPile').classList.add('discard-hover');
+                } else {
+                    document.getElementById('discardPile').classList.remove('discard-hover');
                 }
             };
 
-            const handleEnd = () => {
-                activeIndex = null;
-                el.classList.remove('active-drag');
+            const onTouchEnd = (e) => {
+                if (draggedCardIdx === null) return;
+                const touch = e.changedTouches ? e.changedTouches[0] : e;
+                const discardRect = document.getElementById('discardPile').getBoundingClientRect();
+
+                // Drop in Discard Pile
+                if (touch.clientX >= discardRect.left && touch.clientX <= discardRect.right &&
+                    touch.clientY >= discardRect.top && touch.clientY <= discardRect.bottom) {
+                    discardCard(index);
+                } else {
+                    // Quick Re-order calculation based on X movement
+                    const moveX = touch.clientX - startX;
+                    const shiftIndex = Math.round(moveX / 30);
+                    if (shiftIndex !== 0) {
+                        let newIdx = index + shiftIndex;
+                        if (newIdx < 0) newIdx = 0;
+                        if (newIdx >= currentHand.length) newIdx = currentHand.length - 1;
+                        
+                        const item = currentHand.splice(index, 1)[0];
+                        currentHand.splice(newIdx, 0, item);
+                    }
+                    renderHand();
+                }
+
+                draggedCardIdx = null;
+                document.getElementById('discardPile').classList.remove('discard-hover');
             };
 
-            el.addEventListener('touchstart', handleStart, {passive: true});
-            el.addEventListener('touchmove', handleMove, {passive: true});
-            el.addEventListener('touchend', handleEnd);
+            el.addEventListener('touchstart', onTouchStart, {passive: true});
+            el.addEventListener('touchmove', onTouchMove, {passive: true});
+            el.addEventListener('touchend', onTouchEnd);
 
-            el.addEventListener('mousedown', handleStart);
-            el.addEventListener('mousemove', handleMove);
-            el.addEventListener('mouseup', handleEnd);
+            el.addEventListener('mousedown', onTouchStart);
+            window.addEventListener('mousemove', onTouchMove);
+            window.addEventListener('mouseup', onTouchEnd);
         }
 
-        function swapCards(i, j) {
-            const temp = currentHand[i];
-            currentHand[i] = currentHand[j];
-            currentHand[j] = temp;
+        // Discard Functionality
+        function discardCard(index) {
+            const discarded = currentHand.splice(index, 1)[0];
+            const isRed = discarded.suit === '♥' || discarded.suit === '♦';
+            
+            document.getElementById('discardContent').innerHTML = `
+                <div style="font-size:20px; font-weight:bold; color:${isRed ? '#d00000' : '#fff'}; background:#fff; padding:6px 12px; border-radius:6px; box-shadow:0 2px 6px rgba(0,0,0,0.5)">
+                    ${discarded.value} ${discarded.suit}
+                </div>
+            `;
             renderHand();
+            socket.emit('discardCard', { phone: currentUser.phone, card: discarded });
         }
 
         function drawCard() {
@@ -270,4 +317,4 @@
         socket.on('errorMsg', msg => alert(msg));
     </script>
 </body>
-    </html>
+</html>
