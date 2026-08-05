@@ -37,7 +37,7 @@ app.post('/api/register', (req, res) => {
         name,
         phone,
         password,
-        balance: 100, // ለሙከራ 100 ብር ቦነስ
+        balance: 100, // የሙከራ 100 ብር ቦነስ
         trialEnd: trialEndDate,
         status: 'ACTIVE'
     };
@@ -52,7 +52,7 @@ app.post('/api/login', (req, res) => {
     res.json({ success: true, user: { name: user.name, phone: user.phone, balance: user.balance } });
 });
 
-// Socket Logic
+// Socket.io Game Logic
 io.on('connection', (socket) => {
     const generateDeck = () => {
         const suits = ['♠', '♥', '♣', '♦'];
@@ -62,23 +62,46 @@ io.on('connection', (socket) => {
         return deck.sort(() => Math.random() - 0.5);
     };
 
-    socket.on('startAdminGame', (data) => {
+    // አዲሱ የጨዋታ መጀመሪያ Event
+    socket.on('startGame', (data) => {
         const user = users[data.phone];
         if (!user) return socket.emit('errorMsg', 'እባክዎ መጀመሪያ ይግቡ!');
 
         let deck = generateDeck();
-        let playerHand = deck.splice(0, 14);
+        let playerHand = deck.splice(0, 14); // 14 ካርታዎችን ያድላል
 
+        // ለተጫዋቹ ጨዋታው መጀመሩንና ካርታዎቹን ይልካል
+        socket.emit('gameStarted', { playerHand });
+    });
+
+    // ከአሮጌው ኮድ ጋር ተጣጣፊ እንዲሆን (Backward Compatibility)
+    socket.on('startAdminGame', (data) => {
+        let deck = generateDeck();
+        let playerHand = deck.splice(0, 14);
+        socket.emit('gameStarted', { playerHand });
         socket.emit('adminGameStarted', { playerHand });
     });
 
-    socket.on('claimAdminWin', (data) => {
-        const user = users[data.phone];
-        if (!user) return;
-        user.balance += (data.stake * 2);
-        socket.emit('adminGameWon', { newBalance: user.balance });
+    // ካርታ መመዝበሪያ (Draw Card)
+    socket.on('drawCard', (data) => {
+        const suits = ['♠', '♥', '♣', '♦'];
+        const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        const randomSuit = suits[Math.floor(Math.random() * suits.length)];
+        const randomValue = values[Math.floor(Math.random() * values.length)];
+        
+        socket.emit('cardDrawn', { suit: randomSuit, value: randomValue });
     });
 
+    // የማሸነፍ ጥያቄ (Show)
+    socket.on('claimWin', (data) => {
+        const user = users[data.phone];
+        if (user) {
+            user.balance += 100;
+            socket.emit('gameWon', { newBalance: user.balance });
+        }
+    });
+
+    // የብር ማስገቢያና ማውጫ ጥያቄዎች
     socket.on('submitDeposit', (data) => {
         deposits.push({ id: Date.now().toString(), phone: data.phone, amount: data.amount, status: 'PENDING' });
         socket.emit('depositSubmitted', 'የብር ማስገቢያ ጥያቄዎ በተሳካ ሁኔታ ተልኳል!');
