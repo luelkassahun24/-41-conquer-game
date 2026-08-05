@@ -3,128 +3,154 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ወርቅ 41 ኮንከር</title>
-  <script src="/socket.io/socket.io.js"></script>
+  <title>ወርቅ 41 - የአድሚን ፓነል (Admin Dashboard)</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: #1e1e2f;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      padding: 15px;
-    }
-    h1 { color: #ffd700; margin-bottom: 10px; font-size: 1.8rem; }
-    
-    .card-box {
-      background: #2b2b40;
-      padding: 20px;
-      border-radius: 12px;
-      box-shadow: 0 8px 16px rgba(0,0,0,0.4);
-      width: 100%;
-      max-width: 400px;
-      margin-top: 20px;
-      text-align: center;
-    }
-    
-    input, button {
-      width: 100%;
-      padding: 12px;
-      margin: 8px 0;
-      border-radius: 8px;
-      border: none;
-      font-size: 1rem;
-    }
-    
-    input { background: #3b3b54; color: #fff; }
-    button { background: #ffd700; color: #1e1e2f; font-weight: bold; cursor: pointer; }
-    button:hover { background: #e6c200; }
-
-    .game-board { display: none; width: 100%; max-width: 500px; margin-top: 15px; }
-    .status-bar { background: #33334d; padding: 10px; border-radius: 8px; margin-bottom: 15px; }
-    
-    .hand {
-      display: flex;
-      justify-content: center;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 15px;
-    }
-    .playing-card {
-      width: 60px;
-      height: 90px;
-      background: white;
-      color: black;
-      border-radius: 6px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 5px;
-      font-weight: bold;
-      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    .red { color: #d9534f; }
+    body { font-family: sans-serif; background: #121212; color: #fff; padding: 20px; }
+    h1, h2 { color: #ffd700; }
+    .card { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #333; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #444; padding: 10px; text-align: left; }
+    th { background: #2a2a2a; color: #ffd700; }
+    button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .btn-approve { background: #28a745; color: white; }
+    .btn-warn { background: #ffc107; color: black; }
+    .btn-deduct { background: #fd7e14; color: white; }
+    .btn-ban { background: #dc3545; color: white; }
+    input { padding: 8px; border-radius: 4px; border: 1px solid #444; background: #252525; color: white; }
   </style>
 </head>
 <body>
 
-  <h1>🏆 ወርቅ 41 (41 Conquer)</h1>
+  <h1>🛡️ ወርቅ 41 - Admin Control Dashboard</h1>
 
-  <!-- Join Screen -->
-  <div id="join-screen" class="card-box">
-    <h3>መጫወቻ ክፍል ይቀላቀሉ</h3>
-    <input type="text" id="playerName" placeholder="ስምዎን ያስገቡ...">
-    <input type="text" id="roomId" placeholder="የክፍል ቁጥር (ለምሳሌ: 100)">
-    <button onclick="joinGame()">ወደ ጨዋታው ግባ 🚀</button>
+  <!-- Pending Deposits -->
+  <div class="card">
+    <h2>💳 የብር ማስገቢያ ጥያቄዎች (Pending Deposits)</h2>
+    <table id="depositsTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>ስልክ</th>
+          <th>መጠን (ETB)</th>
+          <th>ሁኔታ</th>
+          <th>እርምጃ</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
   </div>
 
-  <!-- Game Screen -->
-  <div id="game-screen" class="game-board">
-    <div class="status-bar">
-      <p id="roomDisplay">ክፍል: -</p>
-      <p id="playerDisplay">ተጫዋች: -</p>
-    </div>
+  <!-- Pending Withdrawals -->
+  <div class="card">
+    <h2>💸 የብር ማውጫ ጥያቄዎች (Pending Withdrawals)</h2>
+    <table id="withdrawalsTable">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>ስልክ</th>
+          <th>መጠን (ETB)</th>
+          <th>የባንክ/ቴሌብር መረጃ</th>
+          <th>ሁኔታ</th>
+          <th>እርምጃ</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
 
-    <h3>የእርስዎ ካርዶች (Your Hand)</h3>
-    <div id="myHand" class="hand"></div>
+  <!-- User Action Controls (Chapter 9 Specs) -->
+  <div class="card">
+    <h2>⚠️ የተጫዋች መቆጣጠሪያ (User Security Actions)</h2>
+    <div style="display:flex; gap:10px; margin-top:10px; flex-wrap:wrap;">
+      <input type="tel" id="actionPhone" placeholder="የተጫዋች ስልክ ቁጥር">
+      <input type="number" id="deductAmount" placeholder="የቅጣት ብር (Default 200)" value="200">
+      <button class="btn-warn" onclick="userAction('WARN')">⚠️ Send Warning</button>
+      <button class="btn-deduct" onclick="userAction('DEDUCT')">💸 Deduct ETB</button>
+      <button class="btn-ban" onclick="userAction('BAN')">🚫 Ban Account</button>
+    </div>
   </div>
 
   <script>
-    const socket = io();
+    function loadData() {
+      // Fetch Deposits
+      fetch('/admin/deposits')
+        .then(r => r.json())
+        .then(data => {
+          const tbody = document.querySelector('#depositsTable tbody');
+          tbody.innerHTML = '';
+          data.forEach(d => {
+            tbody.innerHTML += `
+              <tr>
+                <td>${d.id}</td>
+                <td>${d.phone}</td>
+                <td>${d.amount} ETB</td>
+                <td>${d.status}</td>
+                <td>
+                  ${d.status === 'PENDING' ? `<button class="btn-approve" onclick="approveDeposit('${d.id}')">Approve</button>` : 'Approved'}
+                </td>
+              </tr>
+            `;
+          });
+        });
 
-    function joinGame() {
-      const name = document.getElementById('playerName').value;
-      const room = document.getElementById('roomId').value;
-
-      if (!name || !room) {
-        alert('እባክዎን ስም እና የክፍል ቁጥር ያስገቡ!');
-        return;
-      }
-
-      socket.emit('joinRoom', { roomId: room, playerName: name });
-
-      document.getElementById('join-screen').style.display = 'none';
-      document.getElementById('game-screen').style.display = 'block';
-
-      document.getElementById('roomDisplay').innerText = `ክፍል ቁጥር: ${room}`;
-      document.getElementById('playerDisplay').innerText = `ተጫዋች: ${name}`;
-      
-      // Sample cards demo
-      renderCards();
+      // Fetch Withdrawals
+      fetch('/admin/withdrawals')
+        .then(r => r.json())
+        .then(data => {
+          const tbody = document.querySelector('#withdrawalsTable tbody');
+          tbody.innerHTML = '';
+          data.forEach(w => {
+            tbody.innerHTML += `
+              <tr>
+                <td>${w.id}</td>
+                <td>${w.phone}</td>
+                <td>${w.amount} ETB</td>
+                <td>${w.accountDetails}</td>
+                <td>${w.status}</td>
+                <td>
+                  ${w.status === 'PENDING' ? `<button class="btn-approve" onclick="approveWithdraw('${w.id}')">Approve</button>` : 'Approved'}
+                </td>
+              </tr>
+            `;
+          });
+        });
     }
 
-    function renderCards() {
-      const handContainer = document.getElementById('myHand');
-      handContainer.innerHTML = `
-        <div class="playing-card red"><span>A</span><span>♥</span></div>
-        <div class="playing-card"><span>10</span><span>♠</span></div>
-        <div class="playing-card red"><span>K</span><span>♦</span></div>
-        <div class="playing-card"><span>J</span><span>♣</span></div>
-      `;
+    function approveDeposit(id) {
+      fetch('/admin/approve-deposit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id })
+      }).then(() => loadData());
     }
+
+    function approveWithdraw(id) {
+      fetch('/admin/approve-withdraw', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ id })
+      }).then(() => loadData());
+    }
+
+    function userAction(action) {
+      const phone = document.getElementById('actionPhone').value;
+      const amount = parseFloat(document.getElementById('deductAmount').value);
+      if(!phone) return alert('እባክዎን የስልክ ቁጥር ያስገቡ!');
+
+      fetch('/admin/user-action', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ phone, action, amount })
+      })
+      .then(r => r.json())
+      .then(data => {
+        alert(data.message || data.error);
+        loadData();
+      });
+    }
+
+    setInterval(loadData, 3000);
+    loadData();
   </script>
 </body>
 </html>
