@@ -5,11 +5,9 @@ const io = require('socket.io')(http);
 const path = require('path');
 
 app.use(express.json());
-
-// 🌟 ይህ ነው የ public ፎልደርን (index.html እና admin.html) ለተጠቃሚውየሚያሳየው 🌟app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-app.use(express.static(path.join(__dirname, 'public')));
-
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 // የዳታቤዝ ማስመሰያ (In-memory Storage)
 let users = {};
 let deposits = [];
