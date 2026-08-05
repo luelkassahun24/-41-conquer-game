@@ -7,7 +7,7 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0b1d13; color: #fff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #05140b; color: #fff; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
         
         .auth-container { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; }
         .auth-box { background: #183324; padding: 25px; border-radius: 12px; border: 2px solid #ffd700; width: 100%; max-width: 350px; text-align: center; }
@@ -19,25 +19,40 @@
         .header-bar { display: flex; justify-content: space-between; align-items: center; background: #12281c; padding: 10px 15px; border-radius: 8px; border: 1px solid #2d5a3f; }
         .balance-box { color: #ffd700; font-weight: bold; font-size: 18px; }
         
-        .game-mode-selector { text-align: center; margin: 15px 0; background: #12281c; padding: 15px; border-radius: 8px; border: 1px solid #2d5a3f; }
-        .game-mode-selector h3 { color: #ffd700; margin-bottom: 10px; }
+        .game-mode-selector { text-align: center; margin: 10px 0; background: #12281c; padding: 12px; border-radius: 8px; border: 1px solid #2d5a3f; }
+        .game-mode-selector h3 { color: #ffd700; margin-bottom: 8px; font-size: 15px; }
+        .mode-btn-group { display: flex; gap: 10px; justify-content: center; }
 
-        .hand-container { position: relative; height: 200px; width: 100%; display: flex; justify-content: center; align-items: flex-end; margin-bottom: 20px; touch-action: none; }
-        .card { width: 70px; height: 105px; background: #fff; color: #000; border-radius: 8px; position: absolute; bottom: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; flex-direction: column; justify-content: space-between; padding: 6px; font-weight: bold; font-size: 15px; cursor: grab; border: 2px solid #ccc; transition: transform 0.2s ease, border-color 0.2s ease; }
-        .card:active { cursor: grabbing; }
-        .card.red { color: #d00; }
-        .card.selected { transform: translateY(-25px) !important; border-color: #ffd700; box-shadow: 0 0 12px #ffd700; }
+        /* Table Area: Draw Deck & Discard Pile */
+        .table-area { display: flex; justify-content: center; align-items: center; gap: 30px; margin: 10px 0; }
+        .pile-box { width: 75px; height: 110px; border-radius: 8px; border: 2px dashed #2d5a3f; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(18, 40, 28, 0.6); position: relative; cursor: pointer; }
+        .pile-box.deck { background: #1a422b; border: 2px solid #ffd700; }
+        .pile-title { position: absolute; top: -20px; font-size: 12px; color: #aaa; white-space: nowrap; }
 
-        .action-bars { display: flex; gap: 8px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; }
-        .btn { padding: 12px 18px; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 14px; }
+        /* Hand Container & Card Design */
+        .hand-container { position: relative; height: 195px; width: 100%; display: flex; justify-content: center; align-items: flex-end; margin-bottom: 10px; touch-action: none; }
+        .card { width: 72px; height: 112px; background: #fff; color: #111; border-radius: 8px; position: absolute; bottom: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; flex-direction: column; justify-content: space-between; padding: 6px; font-weight: bold; cursor: grab; border: 2px solid #ccc; transition: transform 0.15s ease; }
+        .card:active { cursor: grabbing; z-index: 50; }
+        .card.red { color: #d00000; }
+        .card.dragging { opacity: 0.8; z-index: 100 !important; }
+
+        .card-top { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+        .card-value { font-size: 15px; }
+        .card-suit-small { font-size: 14px; }
+        .card-suit-center { font-size: 32px; text-align: center; line-height: 1; margin-top: 2px; }
+        .card-bottom { display: flex; flex-direction: column; align-items: flex-end; line-height: 1; transform: rotate(180deg); }
+
+        .action-bars { display: flex; gap: 8px; justify-content: center; margin-bottom: 5px; flex-wrap: wrap; }
+        .btn { padding: 10px 16px; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 13px; }
         .btn-primary { background: #ffd700; color: #000; }
+        .btn-group { background: #007bff; color: #fff; }
         .btn-success { background: #28a745; color: #fff; }
         .btn-danger { background: #dc3545; color: #fff; }
     </style>
 </head>
 <body>
 
-    <!-- Login/Register Screen -->
+    <!-- Auth Screen -->
     <div id="authScreen" class="auth-container">
         <div class="auth-box">
             <h2>ወርቅ 41 (Werq 41)</h2>
@@ -56,9 +71,25 @@
             <div class="balance-box">💰 <span id="userBalance">0</span> ETB</div>
         </div>
 
+        <!-- Mode Selector -->
         <div class="game-mode-selector">
             <h3>🎮 የጨዋታ አይነት ይምረጡ</h3>
-            <button class="btn btn-primary" onclick="startAdminGame()">🤖 ከአድሚን (Bot) ጋር ተጫወት (Stake: 50 ETB)</button>
+            <div class="mode-btn-group">
+                <button class="btn btn-primary" onclick="startGame('BOT')">🤖 ከአድሚን (Bot)</button>
+                <button class="btn btn-group" onclick="startGame('GROUP')">👥 የቡድን ጨዋታ (Multiplayer)</button>
+            </div>
+        </div>
+
+        <!-- Table Deck & Discard Pile -->
+        <div class="table-area">
+            <div class="pile-box deck" onclick="drawCard()">
+                <span class="pile-title">ቁልል ካርታ (Draw)</span>
+                <span style="font-size: 28px;">🎴</span>
+            </div>
+            <div class="pile-box" id="discardPile">
+                <span class="pile-title">መጣያ ካርታ (Discard)</span>
+                <div id="discardContent" style="color: #666; font-size: 12px; text-align: center;">ባዶ</div>
+            </div>
         </div>
 
         <div class="action-bars">
@@ -67,7 +98,7 @@
             <button class="btn btn-danger" onclick="openWithdrawModal()">💸 ብር አውጣ</button>
         </div>
 
-        <!-- Hand Display Container -->
+        <!-- Player Cards Container -->
         <div class="hand-container" id="playerHand"></div>
     </div>
 
@@ -75,21 +106,18 @@
         const socket = io();
         let currentUser = null;
         let currentHand = [];
+        let draggedIndex = null;
 
         function register() {
             const name = document.getElementById('authName').value;
             const phone = document.getElementById('authPhone').value;
             const password = document.getElementById('authPass').value;
 
-            if(!name || !phone || !password) return alert('እባክዎ ሁሉንም ሳጥኖች ይሙሉ!');
-
             fetch('/api/register', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ name, phone, password })
-            })
-            .then(r => r.json())
-            .then(data => {
+            }).then(r => r.json()).then(data => {
                 if(data.error) return alert(data.error);
                 currentUser = data.user;
                 initDashboard();
@@ -100,15 +128,11 @@
             const phone = document.getElementById('authPhone').value;
             const password = document.getElementById('authPass').value;
 
-            if(!phone || !password) return alert('እባክዎ ስልክና የይለፍ ቃል ያስገቡ!');
-
             fetch('/api/login', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ phone, password })
-            })
-            .then(r => r.json())
-            .then(data => {
+            }).then(r => r.json()).then(data => {
                 if(data.error) return alert(data.error);
                 currentUser = data.user;
                 initDashboard();
@@ -122,12 +146,12 @@
             document.getElementById('userBalance').innerText = currentUser.balance;
         }
 
-        function startAdminGame() {
+        function startGame(mode) {
             if(!currentUser) return;
-            socket.emit('startAdminGame', { phone: currentUser.phone, stake: 50 });
+            socket.emit('startGame', { phone: currentUser.phone, mode: mode });
         }
 
-        socket.on('adminGameStarted', (data) => {
+        socket.on('gameStarted', (data) => {
             currentHand = data.playerHand;
             renderHand();
         });
@@ -142,40 +166,93 @@
                 const isRed = card.suit === '♥' || card.suit === '♦';
                 cardEl.className = `card ${isRed ? 'red' : ''}`;
                 
-                // የካርታ አደራደር ስታይል (Arc layout)
                 const offset = (index - (total - 1) / 2);
-                const angle = offset * 5;
-                const translateX = offset * 28;
-                const translateY = Math.abs(offset) * 4;
+                const angle = offset * 4;
+                const translateX = offset * 26;
 
-                cardEl.style.transform = `translateX(${translateX}px) translateY(${translateY}px) rotate(${angle}deg)`;
+                cardEl.style.transform = `translateX(${translateX}px) rotate(${angle}deg)`;
+                cardEl.dataset.index = index;
 
                 cardEl.innerHTML = `
-                    <div>${card.value}</div>
-                    <div style="font-size:22px; text-align:center;">${card.suit}</div>
-                    <div style="text-align:right;">${card.value}</div>
+                    <div class="card-top">
+                        <span class="card-value">${card.value}</span>
+                        <span class="card-suit-small">${card.suit}</span>
+                    </div>
+                    <div class="card-suit-center">${card.suit}</div>
+                    <div class="card-bottom">
+                        <span class="card-value">${card.value}</span>
+                        <span class="card-suit-small">${card.suit}</span>
+                    </div>
                 `;
 
-                // መምረጫ እና ማንቀሳቀሻ logic
-                cardEl.onclick = () => {
-                    cardEl.classList.toggle('selected');
-                };
-
+                setupCardDrag(cardEl, index);
                 container.appendChild(cardEl);
             });
         }
 
-        function claimWin() {
-            if(!currentUser) return;
-            socket.emit('claimAdminWin', { phone: currentUser.phone, stake: 50 });
+        function setupCardDrag(el, index) {
+            let startX = 0;
+
+            const onStart = (e) => {
+                draggedIndex = index;
+                startX = e.touches ? e.touches[0].clientX : e.clientX;
+                el.classList.add('dragging');
+            };
+
+            const onMove = (e) => {
+                if (draggedIndex === null) return;
+                const currentX = e.touches ? e.touches[0].clientX : e.clientX;
+                const diffX = currentX - startX;
+                
+                if (diffX > 35 && draggedIndex < currentHand.length - 1) {
+                    swapCards(draggedIndex, draggedIndex + 1);
+                    draggedIndex = null;
+                } else if (diffX < -35 && draggedIndex > 0) {
+                    swapCards(draggedIndex, draggedIndex - 1);
+                    draggedIndex = null;
+                }
+            };
+
+            const onEnd = () => {
+                draggedIndex = null;
+                el.classList.remove('dragging');
+            };
+
+            el.addEventListener('touchstart', onStart);
+            el.addEventListener('touchmove', onMove);
+            el.addEventListener('touchend', onEnd);
+
+            el.addEventListener('mousedown', onStart);
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onEnd);
         }
 
-        socket.on('adminGameWon', (data) => {
+        function swapCards(i, j) {
+            const temp = currentHand[i];
+            currentHand[i] = currentHand[j];
+            currentHand[j] = temp;
+            renderHand();
+        }
+
+        function drawCard() {
+            if(currentHand.length === 0) return alert('እባክዎ መጀመሪያ ጨዋታ ይጀምሩ!');
+            socket.emit('drawCard', { phone: currentUser.phone });
+        }
+
+        socket.on('cardDrawn', (card) => {
+            currentHand.push(card);
+            renderHand();
+        });
+
+        function claimWin() {
+            if(!currentUser) return;
+            socket.emit('claimWin', { phone: currentUser.phone });
+        }
+
+        socket.on('gameWon', (data) => {
             alert('🎉 እንኳን ደስ አለዎት! አሸንፈዋል!');
             document.getElementById('userBalance').innerText = data.newBalance;
         });
-
-        socket.on('errorMsg', msg => alert(msg));
 
         function openDepositModal() {
             const amount = prompt('ማስገባት የሚፈልጉትን የብር መጠን ያስገቡ (ETB):');
@@ -190,6 +267,7 @@
 
         socket.on('depositSubmitted', msg => alert(msg));
         socket.on('withdrawSubmitted', msg => alert(msg));
+        socket.on('errorMsg', msg => alert(msg));
     </script>
 </body>
-    </html>
+                    </html>
