@@ -1,13 +1,13 @@
 {
-  "name": "werq-41-conquer",
+  "name": "werq41-conquer",
   "version": "1.0.0",
-  "description": "Werk 41 Conquer Card Game Server",
+  "description": "Werq 41 Conquer Card Game",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "socket.io": "^4.7.2"
+    "socket.io": "^4.6.1"
   }
 }
