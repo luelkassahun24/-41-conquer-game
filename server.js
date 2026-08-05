@@ -1,297 +1,168 @@
 const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
+const app = express();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
 const path = require('path');
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
-
-app.use(express.static('public'));
 app.use(express.json());
 
-// Telegram Bot Credentials (በኋላ እውነተኛ Token አስገባበት)
-const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || 'YOUR_TELEGRAM_BOT_TOKEN';
-const TELEGRAM_ADMIN_CHAT_ID = process.env.TELEGRAM_ADMIN_CHAT_ID || 'YOUR_ADMIN_CHAT_ID';
+// 🌟 ይህ ነው የ public ፎልደርን (index.html እና admin.html) ለተጠቃሚው የሚያሳየው 🌟
+app.use(express.static(path.join(__dirname, 'public')));
 
-function sendTelegramNotification(message) {
-  if (TELEGRAM_BOT_TOKEN === 'YOUR_TELEGRAM_BOT_TOKEN') return;
-  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
-  fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: TELEGRAM_ADMIN_CHAT_ID, text: message })
-  }).catch(err => console.error('Telegram Bot Error:', err));
-}
+// የዳታቤዝ ማስመሰያ (In-memory Storage)
+let users = {};
+let deposits = [];
+let withdrawals = [];
 
-// System Database State
-const users = {}; // { phone: { name, phone, password, balance, regDate, falseShowCount, isBanned } }
-const pendingDeposits = []; // [{ id, phone, amount, proofUrl, status }]
-const pendingWithdrawals = []; // [{ id, phone, amount, accountDetails, status }]
-const rooms = {};
-
-// Deck Creation
-function createDeck() {
-  const suits = ['♠', '♥', '♦', '♣'];
-  const values = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
-  let deck = [];
-
-  for (let suit of suits) {
-    for (let value of values) {
-      let points = 0;
-      if (value === 'A') points = 11;
-      else if (['10', 'J', 'Q', 'K'].includes(value)) points = 10;
-      else points = parseInt(value);
-
-      deck.push({ suit, value, points });
-    }
-  }
-  // Add Joker
-  deck.push({ suit: '🃏', value: 'JOKER', points: 0, isJoker: true });
-  return deck.sort(() => Math.random() - 0.5);
-}
-
-// Trial Check: 3 Days
-function isTrialActive(user) {
-  const now = new Date();
-  const regDate = new Date(user.regDate);
-  const diffTime = Math.abs(now - regDate);
-  const diffDays = diffTime / (1000 * 60 * 60 * 24);
-  return diffDays <= 3;
-}
-
-// REST API for Authentication
+// 1. መመዝገቢያ (Register - 3 Day Free Trial)
 app.post('/api/register', (req, res) => {
-  const { name, phone, password } = req.body;
-  if (!name || !phone || !password) return res.status(400).json({ error: 'ሁሉም መረጃዎች ያስፈልጋሉ!' });
+    const { name, phone, password } = req.body;
+    if (users[phone]) return res.json({ error: 'ይህ ስልክ ቁጥር ከዚህ በፊት ተመዝግቧል!' });
 
-  if (users[phone]) return res.status(400).json({ error: 'ይህ የስልክ ቁጥር ተመዝግቧል!' });
+    const trialEndDate = new Date();
+    trialEndDate.setDate(trialEndDate.getDate() + 3);
 
-  users[phone] = {
-    name,
-    phone,
-    password,
-    balance: 0,
-    regDate: new Date().toISOString(),
-    falseShowCount: 0,
-    isBanned: false,
-    hasDeposited: false
-  };
-
-  res.json({ message: 'ምዝገባው ተሳክቷል!', user: users[phone] });
+    users[phone] = {
+        name,
+        phone,
+        password,
+        balance: 0,
+        trialEnd: trialEndDate,
+        status: 'ACTIVE',
+        warnings: 0
+    };
+    res.json({ success: true, user: { name, phone, balance: 0 } });
 });
 
+// 2. መግቢያ (Login)
 app.post('/api/login', (req, res) => {
-  const { phone, password } = req.body;
-  const user = users[phone];
+    const { phone, password } = req.body;
+    const user = users[phone];
+    if (!user || user.password !== password) return res.json({ error: 'የተሳሳተ ስልክ ወይም የይለፍ ቃል!' });
+    if (user.status === 'BANNED') return res.json({ error: 'አካውንትዎ ታግዷል! አድሚን ያነጋግሩ።' });
 
-  if (!user || user.password !== password) {
-    return res.status(400).json({ error: 'የተሳሳተ የስልክ ቁጥር ወይም የይለፍ ቃል!' });
-  }
-
-  if (user.isBanned) {
-    return res.status(403).json({ error: 'መለያዎ የታገደ ነው!' });
-  }
-
-  res.json({ user, isTrial: isTrialActive(user) });
+    res.json({ success: true, user: { name: user.name, phone: user.phone, balance: user.balance } });
 });
 
-// Admin REST APIs
-app.get('/admin/deposits', (req, res) => res.json(pendingDeposits));
-app.get('/admin/withdrawals', (req, res) => res.json(pendingWithdrawals));
+// ==========================================
+// የአድሚን REST APIs (Admin Panel)
+// ==========================================
+app.get('/admin/deposits', (req, res) => res.json(deposits));
+app.get('/admin/withdrawals', (req, res) => res.json(withdrawals));
 
 app.post('/admin/approve-deposit', (req, res) => {
-  const { id } = req.body;
-  const reqItem = pendingDeposits.find(d => d.id === id);
-  if (reqItem && reqItem.status === 'PENDING') {
-    reqItem.status = 'APPROVED';
-    users[reqItem.phone].balance += reqItem.amount;
-    users[reqItem.phone].hasDeposited = true;
-    res.json({ message: 'Deposit ተፈቅዷል' });
-  } else {
-    res.status(400).json({ error: 'ጥያቄው አልተገኘም' });
-  }
+    const { id } = req.body;
+    const dep = deposits.find(d => d.id === id);
+    if (dep && dep.status === 'PENDING') {
+        dep.status = 'APPROVED';
+        if (users[dep.phone]) users[dep.phone].balance += parseFloat(dep.amount);
+    }
+    res.json({ success: true });
 });
 
 app.post('/admin/approve-withdraw', (req, res) => {
-  const { id } = req.body;
-  const reqItem = pendingWithdrawals.find(w => w.id === id);
-  if (reqItem && reqItem.status === 'PENDING') {
-    reqItem.status = 'APPROVED';
-    res.json({ message: 'Withdrawal ተፈቅዷል' });
-  } else {
-    res.status(400).json({ error: 'ጥያቄው አልተገኘም' });
-  }
+    const { id } = req.body;
+    const withReq = withdrawals.find(w => w.id === id);
+    if (withReq && withReq.status === 'PENDING') {
+        withReq.status = 'APPROVED';
+    }
+    res.json({ success: true });
 });
 
 app.post('/admin/user-action', (req, res) => {
-  const { phone, action, amount } = req.body;
-  const user = users[phone];
-  if (!user) return res.status(404).json({ error: 'ተጫዋች አልተገኘም' });
+    const { phone, action, amount } = req.body;
+    const user = users[phone];
+    if (!user) return res.json({ error: 'ተጫዋቹ አልተገኘም!' });
 
-  if (action === 'WARN') {
-    res.json({ message: 'ማስጠንቀቂያ ተልኳል' });
-  } else if (action === 'DEDUCT') {
-    const deductAmt = amount || 200;
-    user.balance = Math.max(0, user.balance - deductAmt);
-    res.json({ message: `${deductAmt} ETB ተቀንሷል` });
-  } else if (action === 'BAN') {
-    user.isBanned = true;
-    res.json({ message: 'አካውንቱ ታግዷል' });
-  }
+    if (action === 'WARN') {
+        user.warnings += 1;
+        io.emit('errorMsg', `⚠️ ማሳሰቢያ ለ ${user.name}: ህገወጥ አሰራር ተስተውሏል!`);
+    } else if (action === 'DEDUCT') {
+        user.balance = Math.max(0, user.balance - (amount || 200));
+    } else if (action === 'BAN') {
+        user.status = 'BANNED';
+    }
+    res.json({ success: true, message: 'እርምጃው ተወስዷል!' });
 });
 
-// Socket.io Game Architecture
+
+// ==========================================
+// Socket.io የጨዋታ ሎጂክ (Game Engine)
+// ==========================================
 io.on('connection', (socket) => {
-  
-  // Deposit Request
-  socket.on('submitDeposit', ({ phone, amount, proofUrl }) => {
-    const depId = Date.now().toString();
-    pendingDeposits.push({ id: depId, phone, amount: parseFloat(amount), proofUrl, status: 'PENDING' });
-    sendTelegramNotification(`💰 አዲስ የብር ማስገቢያ ጥያቄ!\nስልክ: ${phone}\nመጠን: ${amount} ETB`);
-    socket.emit('depositSubmitted', 'የገንዘብ ማስገቢያ ጥያቄዎ ለአድሚን ተልኳል!');
-  });
-
-  // Withdraw Request
-  socket.on('submitWithdraw', ({ phone, amount, accountDetails }) => {
-    const user = users[phone];
-    if (!user) return;
-    if (amount < 500) return socket.emit('errorMsg', 'አነስተኛው የማውጫ ገደብ 500 ETB ነው!');
-    if (user.balance < amount) return socket.emit('errorMsg', 'በቂ ባላንስ የለዎትም!');
-
-    user.balance -= amount; // Hold balance
-    const withdrawId = Date.now().toString();
-    pendingWithdrawals.push({ id: withdrawId, phone, amount, accountDetails, status: 'PENDING' });
-
-    sendTelegramNotification(`💸 አዲስ የብር ማውጫ ጥያቄ!\nስልክ: ${phone}\nመጠን: ${amount} ETB\nመረጃ: ${accountDetails}`);
-    socket.emit('withdrawSubmitted', 'የብር ማውጣት ጥያቄዎ ተልኳል!');
-  });
-
-  // Single Player vs Admin (Bot) Mode
-  socket.on('startAdminGame', ({ phone, stake }) => {
-    const user = users[phone];
-    if (!user) return;
-    if (stake < 10) return socket.emit('errorMsg', 'ከአድሚን ጋር ለመጫወት አነስተኛው መደብ 10 ETB ነው!');
-
-    const isTrial = isTrialActive(user) && !user.hasDeposited;
-    if (!isTrial && user.balance < stake) {
-      return socket.emit('errorMsg', 'የነፃ ሙከራ ጊዜዎ አልቋል! እባክዎን ብር ማስገባት (Deposit) ያድርጉ።');
-    }
-
-    if (!isTrial) {
-      user.balance -= stake;
-    }
-
-    const deck = createDeck();
-    const playerHand = deck.splice(0, 13);
-    const adminHand = deck.splice(0, 13);
-
-    // Dynamic Win Probability Logic
-    const winProbability = isTrial ? 0.50 : 0.125; // 50% for Trial, 12.5% for Paid Real Mode
-
-    socket.emit('adminGameStarted', {
-      playerHand,
-      stake,
-      winProbability,
-      isTrial
-    });
-  });
-
-  // Admin Game Claim Victory
-  socket.on('claimAdminWin', ({ phone, stake, isFalseShow }) => {
-    const user = users[phone];
-    if (!user) return;
-
-    if (isFalseShow) {
-      user.falseShowCount += 1;
-      if (user.falseShowCount <= 2) {
-        socket.emit('errorMsg', `ማስጠንቀቂያ፦ ሳይጨርሱ ጨረስኩ ብለዋል። (ጥሰት ${user.falseShowCount}/3)`);
-      } else {
-        user.falseShowCount = 0;
-        socket.emit('errorMsg', '3 ጊዜ የተሳሳተ ጥሰት በመፈጸምዎ የመደብ ብርዎ ተበልቷል!');
-      }
-      return;
-    }
-
-    // Payout Logic: 5x Stake
-    const winAmount = stake * 5;
-    user.balance += winAmount;
-    socket.emit('adminGameWon', { winAmount, newBalance: user.balance });
-  });
-
-  // Multiplayer Group Logic
-  socket.on('createGroupRoom', ({ phone, stake }) => {
-    const user = users[phone];
-    if (!user) return;
-    if (stake < 50) return socket.emit('errorMsg', 'የግሩፕ ጨዋታ አነስተኛ መግቢያ 50 ETB ነው!');
-
-    const roomId = Math.floor(1000 + Math.random() * 9000).toString();
-    rooms[roomId] = {
-      id: roomId,
-      creator: phone,
-      stake: parseFloat(stake),
-      players: [],
-      deck: [],
-      discardPile: [],
-      status: 'WAITING',
-      currentTurn: 0
+    
+    // የካርታ መደብ (Deck) መፍጠሪያ
+    const generateDeck = () => {
+        const suits = ['♠', '♥', '♣', '♦'];
+        const values = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        let deck = [];
+        suits.forEach(s => values.forEach(v => deck.push({ suit: s, value: v })));
+        return deck.sort(() => Math.random() - 0.5);
     };
 
-    socket.emit('roomCreated', { roomId, stake });
-  });
+    // አድሚን ጨዋታ (Admin Game)
+    socket.on('startAdminGame', (data) => {
+        const user = users[data.phone];
+        if (!user) return socket.emit('errorMsg', 'እባክዎ መጀመሪያ ይግቡ!');
+        if (user.balance < data.stake) return socket.emit('errorMsg', 'በቂ ቀሪ ሂሳብ የለዎትም!');
 
-  socket.on('joinGroupRoom', ({ roomId, phone }) => {
-    const room = rooms[roomId];
-    const user = users[phone];
-    if (!room || !user) return socket.emit('errorMsg', 'ክፍሉ አልተገኘም!');
+        // ብር መቀነስ
+        user.balance -= data.stake;
 
-    const isTrial = isTrialActive(user) && !user.hasDeposited;
-    if (!isTrial && user.balance < room.stake) {
-      return socket.emit('errorMsg', 'የነፃ ሙከራ ጊዜዎ አልቋል! በቂ ባላንስ የለዎትም።');
-    }
+        let deck = generateDeck();
+        let playerHand = deck.splice(0, 14);
 
-    socket.join(roomId);
-    room.players.push({ id: socket.id, phone, name: user.name, hand: [] });
+        socket.emit('adminGameStarted', { playerHand });
+    });
 
-    io.to(roomId).emit('playerJoined', { playersCount: room.players.length });
+    socket.on('claimAdminWin', (data) => {
+        const user = users[data.phone];
+        if(!user) return;
 
-    if (room.players.length >= 4 && room.status === 'WAITING') {
-      // Start Game Flow
-      room.status = 'SORTING_PHASE';
-      room.deck = createDeck();
+        // የድል ዕድል ካልኩሌሽን (Win Probability)
+        let isTrial = new Date() < new Date(user.trialEnd);
+        let winChance = isTrial ? 0.50 : 0.125; // 50% for Trial, 12.5% for Paid
 
-      // Card Distribution
-      room.players.forEach((p, idx) => {
-        const count = (idx === 0) ? 14 : 13;
-        p.hand = room.deck.splice(0, count);
-      });
-
-      // Deduction
-      room.players.forEach(p => {
-        if (!isTrialActive(users[p.phone])) {
-          users[p.phone].balance -= room.stake;
+        // ተጫዋቹ እውነተኛ አሸናፊ ከሆነ (True Show)
+        if (Math.random() < winChance) {
+            user.balance += (data.stake * 2);
+            socket.emit('adminGameWon', { newBalance: user.balance });
+        } else {
+            socket.emit('errorMsg', 'ካርታዎ ሙሉ በሙሉ አልተደራጀም!');
         }
-      });
+    });
 
-      // 20 Seconds Card Sorting Phase Announcement
-      io.to(roomId).emit('startSortingPhase', {
-        duration: 20,
-        msg: '🧩 ካርታዎን ያደራጁ (20 ሰከንድ)'
-      });
-
-      setTimeout(() => {
-        room.status = 'PLAYING';
-        io.to(roomId).emit('startPlayPhase', {
-          players: room.players,
-          turn: room.currentTurn
+    // ብር ማስገባት (Deposit)
+    socket.on('submitDeposit', (data) => {
+        deposits.push({
+            id: Date.now().toString(),
+            phone: data.phone,
+            amount: data.amount,
+            status: 'PENDING'
         });
-      }, 20000);
-    }
-  });
+        socket.emit('depositSubmitted', 'የብር ማስገቢያ ጥያቄዎ በተሳካ ሁኔታ ተልኳል! በአጭር ጊዜ ውስጥ ይፀድቃል።');
+    });
 
+    // ብር ማውጣት (Withdraw)
+    socket.on('submitWithdraw', (data) => {
+        const user = users[data.phone];
+        if (user && user.balance >= data.amount && data.amount >= 500) {
+            user.balance -= data.amount;
+            withdrawals.push({
+                id: Date.now().toString(),
+                phone: data.phone,
+                amount: data.amount,
+                accountDetails: data.accountDetails,
+                status: 'PENDING'
+            });
+            socket.emit('withdrawSubmitted', 'የብር ማውጫ ጥያቄዎ ተልኳል!');
+        } else {
+            socket.emit('errorMsg', 'በቂ ቀሪ ሂሳብ የለዎትም ወይም መጠኑ ከ 500 ETB በታች ነው!');
+        }
+    });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Werq 41 Master Plan Server running on port ${PORT}`);
+http.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
