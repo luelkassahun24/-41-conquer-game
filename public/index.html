@@ -19,22 +19,21 @@
         .header-bar { display: flex; justify-content: space-between; align-items: center; background: #12281c; padding: 10px 15px; border-radius: 8px; border: 1px solid #2d5a3f; }
         .balance-box { color: #ffd700; font-weight: bold; font-size: 18px; }
         
-        .game-mode-selector { text-align: center; margin: 10px 0; background: #12281c; padding: 12px; border-radius: 8px; border: 1px solid #2d5a3f; }
+        /* ጨዋታ ሲጀመር የሚሸሸግ መምረጫ */
+        .game-mode-selector { text-align: center; margin: 10px 0; background: #12281c; padding: 12px; border-radius: 8px; border: 1px solid #2d5a3f; transition: all 0.3s ease; }
         .game-mode-selector h3 { color: #ffd700; margin-bottom: 8px; font-size: 15px; }
         .mode-btn-group { display: flex; gap: 10px; justify-content: center; }
 
-        /* Table Area: Draw Deck & Discard Pile */
-        .table-area { display: flex; justify-content: center; align-items: center; gap: 30px; margin: 10px 0; }
+        .table-area { display: flex; justify-content: center; align-items: center; gap: 30px; margin: 15px 0; }
         .pile-box { width: 75px; height: 110px; border-radius: 8px; border: 2px dashed #2d5a3f; display: flex; flex-direction: column; justify-content: center; align-items: center; background: rgba(18, 40, 28, 0.6); position: relative; cursor: pointer; }
         .pile-box.deck { background: #1a422b; border: 2px solid #ffd700; }
         .pile-title { position: absolute; top: -20px; font-size: 12px; color: #aaa; white-space: nowrap; }
 
-        /* Hand Container & Card Design */
-        .hand-container { position: relative; height: 195px; width: 100%; display: flex; justify-content: center; align-items: flex-end; margin-bottom: 10px; touch-action: none; }
-        .card { width: 72px; height: 112px; background: #fff; color: #111; border-radius: 8px; position: absolute; bottom: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; flex-direction: column; justify-content: space-between; padding: 6px; font-weight: bold; cursor: grab; border: 2px solid #ccc; transition: transform 0.15s ease; }
-        .card:active { cursor: grabbing; z-index: 50; }
+        /* የካርታ አደራደርና የመጎተት ስታይል */
+        .hand-container { position: relative; height: 210px; width: 100%; display: flex; justify-content: center; align-items: flex-end; margin-bottom: 10px; touch-action: none; }
+        .card { width: 72px; height: 112px; background: #fff; color: #111; border-radius: 8px; position: absolute; bottom: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.6); display: flex; flex-direction: column; justify-content: space-between; padding: 6px; font-weight: bold; cursor: grab; border: 2px solid #ccc; transition: transform 0.1s ease; user-select: none; }
         .card.red { color: #d00000; }
-        .card.dragging { opacity: 0.8; z-index: 100 !important; }
+        .card.active-drag { z-index: 200 !important; border-color: #ffd700; box-shadow: 0 0 15px rgba(255, 215, 0, 0.8); }
 
         .card-top { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
         .card-value { font-size: 15px; }
@@ -71,24 +70,24 @@
             <div class="balance-box">💰 <span id="userBalance">0</span> ETB</div>
         </div>
 
-        <!-- Mode Selector -->
-        <div class="game-mode-selector">
+        <!-- Mode Selector (ጨዋታ ሲጀምር የሚጠፋ) -->
+        <div class="game-mode-selector" id="modeSelector">
             <h3>🎮 የጨዋታ አይነት ይምረጡ</h3>
             <div class="mode-btn-group">
                 <button class="btn btn-primary" onclick="startGame('BOT')">🤖 ከአድሚን (Bot)</button>
-                <button class="btn btn-group" onclick="startGame('GROUP')">👥 የቡድን ጨዋታ (Multiplayer)</button>
+                <button class="btn btn-group" onclick="startGame('GROUP')">👥 የቡድን ጨዋታ</button>
             </div>
         </div>
 
-        <!-- Table Deck & Discard Pile -->
+        <!-- Table Area -->
         <div class="table-area">
             <div class="pile-box deck" onclick="drawCard()">
-                <span class="pile-title">ቁልል ካርታ (Draw)</span>
+                <span class="pile-title">ቁልል ካርታ</span>
                 <span style="font-size: 28px;">🎴</span>
             </div>
             <div class="pile-box" id="discardPile">
-                <span class="pile-title">መጣያ ካርታ (Discard)</span>
-                <div id="discardContent" style="color: #666; font-size: 12px; text-align: center;">ባዶ</div>
+                <span class="pile-title">መጣያ ካርታ</span>
+                <div id="discardContent" style="color: #666; font-size: 12px;">ባዶ</div>
             </div>
         </div>
 
@@ -98,7 +97,6 @@
             <button class="btn btn-danger" onclick="openWithdrawModal()">💸 ብር አውጣ</button>
         </div>
 
-        <!-- Player Cards Container -->
         <div class="hand-container" id="playerHand"></div>
     </div>
 
@@ -106,7 +104,8 @@
         const socket = io();
         let currentUser = null;
         let currentHand = [];
-        let draggedIndex = null;
+        let activeIndex = null;
+        let startX = 0;
 
         function register() {
             const name = document.getElementById('authName').value;
@@ -153,6 +152,8 @@
 
         socket.on('gameStarted', (data) => {
             currentHand = data.playerHand;
+            // ጨዋታው ሲጀምር መምረጫው እንዲጠፋ ይደረጋል
+            document.getElementById('modeSelector').style.display = 'none';
             renderHand();
         });
 
@@ -167,11 +168,10 @@
                 cardEl.className = `card ${isRed ? 'red' : ''}`;
                 
                 const offset = (index - (total - 1) / 2);
-                const angle = offset * 4;
-                const translateX = offset * 26;
+                const angle = offset * 3.5;
+                const translateX = offset * 25;
 
                 cardEl.style.transform = `translateX(${translateX}px) rotate(${angle}deg)`;
-                cardEl.dataset.index = index;
 
                 cardEl.innerHTML = `
                     <div class="card-top">
@@ -185,46 +185,46 @@
                     </div>
                 `;
 
-                setupCardDrag(cardEl, index);
+                // ቀሊል የ touch/mouse እንቅስቃሴ
+                bindCardTouch(cardEl, index);
                 container.appendChild(cardEl);
             });
         }
 
-        function setupCardDrag(el, index) {
-            let startX = 0;
-
-            const onStart = (e) => {
-                draggedIndex = index;
+        function bindCardTouch(el, index) {
+            const handleStart = (e) => {
+                activeIndex = index;
                 startX = e.touches ? e.touches[0].clientX : e.clientX;
-                el.classList.add('dragging');
+                el.classList.add('active-drag');
             };
 
-            const onMove = (e) => {
-                if (draggedIndex === null) return;
+            const handleMove = (e) => {
+                if (activeIndex === null || activeIndex !== index) return;
                 const currentX = e.touches ? e.touches[0].clientX : e.clientX;
-                const diffX = currentX - startX;
-                
-                if (diffX > 35 && draggedIndex < currentHand.length - 1) {
-                    swapCards(draggedIndex, draggedIndex + 1);
-                    draggedIndex = null;
-                } else if (diffX < -35 && draggedIndex > 0) {
-                    swapCards(draggedIndex, draggedIndex - 1);
-                    draggedIndex = null;
+                const diff = currentX - startX;
+
+                // 25px ያህል ወደ ግራ ወይም ቀኝ ሲጎተት ቦታ መቀያየር
+                if (diff > 25 && index < currentHand.length - 1) {
+                    swapCards(index, index + 1);
+                    activeIndex = null;
+                } else if (diff < -25 && index > 0) {
+                    swapCards(index, index - 1);
+                    activeIndex = null;
                 }
             };
 
-            const onEnd = () => {
-                draggedIndex = null;
-                el.classList.remove('dragging');
+            const handleEnd = () => {
+                activeIndex = null;
+                el.classList.remove('active-drag');
             };
 
-            el.addEventListener('touchstart', onStart);
-            el.addEventListener('touchmove', onMove);
-            el.addEventListener('touchend', onEnd);
+            el.addEventListener('touchstart', handleStart, {passive: true});
+            el.addEventListener('touchmove', handleMove, {passive: true});
+            el.addEventListener('touchend', handleEnd);
 
-            el.addEventListener('mousedown', onStart);
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', onEnd);
+            el.addEventListener('mousedown', handleStart);
+            el.addEventListener('mousemove', handleMove);
+            el.addEventListener('mouseup', handleEnd);
         }
 
         function swapCards(i, j) {
@@ -270,4 +270,4 @@
         socket.on('errorMsg', msg => alert(msg));
     </script>
 </body>
-                    </html>
+    </html>
